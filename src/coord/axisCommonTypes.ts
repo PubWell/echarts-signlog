@@ -269,4 +269,4 @@ interface SplitAreaOption {
 
 
 export type AxisBaseOption = ValueAxisBaseOption | LogAxisBaseOption
-    | CategoryAxisBaseOption | TimeAxisBaseOption | AxisBaseOptionCommon;
+    | CategoryAxisBaseOption | TimeAxisBaseOption | AxisBaseOptionCommon | SignLogAxisBaseOption;
