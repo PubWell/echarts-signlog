@@ -34745,6 +34745,7 @@
       };
 
       SignLogScale.prototype.setExtent = function (start, end) {
+        warn('setExtent>>>>>>>>>>>>>>>>>>>');
         start = this.signedLogTransform(start);
         end = this.signedLogTransform(end);
         intervalScaleProto$1.setExtent.call(this, start, end);
@@ -34786,6 +34787,7 @@
 
 
       SignLogScale.prototype.calcNiceTicks = function (approxTickNum) {
+        warn('calcNiceTicks>>>>>>>>>>>>>>>>>>>');
         approxTickNum = approxTickNum || 10;
         var extent = this._extent;
         var span = extent[1] - extent[0];

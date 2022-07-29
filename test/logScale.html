@@ -31,7 +31,7 @@ under the License.
                 height: 100%;
             }
         </style>
-        <input type="button" onclick="toggle('log')" value="log">
+        <input type="button" onclick="toggle('signlog')" value="signlog">
         <input type="button" onclick="toggle('value')" value="value">
         <!-- <button (onclick)="toggle('value')">value</button> -->
         <div id='main'></div>
@@ -60,14 +60,14 @@ under the License.
                         left: 'left'
                     },
                     xAxis: {
-                        type: 'category',
+                        type: 'value',
                         name: 'x',
                         splitLine: { show: false },
                         axisLabel:{
                             // inside: true,
                             margin: 0
                         },
-                        data: [1e-1, 2e-1, 3e-1, 4e-1]
+                        // data: [1e-1, 2e-1, 3e-1, 4e-1]
                     },
                     grid: {
                         left: '3%',
@@ -90,7 +90,7 @@ under the License.
                         // data: arr
                         // data: [-1e-10, -1e-5, 1e-10, 1e-5],
                         // data: [-1e5, -1e3, -1e-1, -1e-2],
-                        data: [-1e-5, -1e-3, 1e2, 1e3],
+                        data: [[1,-1e-5], [2,-1e-3], [3,1e2], [4,1e3]],
                         // data: [-1e2, -1e3, -1e4, -1e5],
                         // data: [1e2, 1e3, 1e4, 1e5],
                     }

@@ -21,6 +21,7 @@ import * as zrUtil from 'zrender/src/core/util';
 import Scale from './Scale';
 import * as numberUtil from '../util/number';
 import * as scaleHelper from './helper';
+import { warn } from '../util/log';
 
 // Use some method of IntervalScale
 import IntervalScale from './Interval';
@@ -88,6 +89,7 @@ class SignLogScale extends Scale {
     }
 
     setExtent(start: number, end: number): void {
+        warn('setExtent>>>>>>>>>>>>>>>>>>>');
         start = this.signedLogTransform(start);
         end = this.signedLogTransform(end);
         intervalScaleProto.setExtent.call(this, start, end);
@@ -130,6 +132,7 @@ class SignLogScale extends Scale {
      * @param approxTickNum default 10 Given approx tick number
      */
     calcNiceTicks(approxTickNum: number): void {
+        warn('calcNiceTicks>>>>>>>>>>>>>>>>>>>');
         approxTickNum = approxTickNum || 10;
         const extent = this._extent;
         let span = extent[1] - extent[0];

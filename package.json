@@ -1,6 +1,6 @@
 {
   "name": "echarts-signlog",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Add type 'signlog' based on echarts(5.3.3) -- Apache ECharts is a powerful, interactive charting and data visualization library for browser",
   "license": "Apache-2.0",
   "keywords": [
