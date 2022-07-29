@@ -51,7 +51,7 @@ export interface RadarIndicatorOption {
     max?: number
     color?: ColorString
 
-    axisType?: 'value' | 'log'
+    axisType?: 'value' | 'log' | 'signlog'
 }
 
 export interface RadarOption extends ComponentOption, CircleLayoutOptionMixin {

@@ -34388,7 +34388,7 @@ function isInLargeMode(seriesModel) {
 
 
 function getValueAxisStart(baseAxis, valueAxis) {
-  return valueAxis.toGlobalCoord(valueAxis.dataToCoord(valueAxis.type === 'log' ? 1 : 0));
+  return valueAxis.toGlobalCoord(valueAxis.dataToCoord(valueAxis.type === 'log' || valueAxis.type === 'signlog' ? 1 : 0));
 }
 
 var bisect = function (a, x, lo, hi) {
@@ -35130,8 +35130,6 @@ function (_super) {
   };
 
   SignLogScale.prototype.setExtent = function (start, end) {
-    console.log("SignLogScale setExtent>>>>>>>>>>>>", start, end);
-    var base = this.base;
     start = this.signedLogTransform(start);
     end = this.signedLogTransform(end);
     intervalScaleProto$1.setExtent.call(this, start, end);
@@ -35142,7 +35140,6 @@ function (_super) {
 
 
   SignLogScale.prototype.getExtent = function () {
-    var base = this.base;
     var extent = scaleProto$1.getExtent.call(this);
     extent[0] = this.signedLogInvTransform(extent[0]);
     extent[1] = this.signedLogInvTransform(extent[1]); // Fix #4158
@@ -35151,14 +35148,12 @@ function (_super) {
     var originalExtent = originalScale.getExtent();
     this._fixMin && (extent[0] = fixRoundingError$1(extent[0], originalExtent[0]));
     this._fixMax && (extent[1] = fixRoundingError$1(extent[1], originalExtent[1]));
-    console.log("SignLogScale setExtent>>>>>>>>>>>>", extent);
     return extent;
   };
 
   SignLogScale.prototype.unionExtent = function (extent) {
     this._originalScale.unionExtent(extent);
 
-    var base = this.base;
     extent[0] = this.signedLogTransform(extent[0]);
     extent[1] = this.signedLogTransform(extent[1]);
     scaleProto$1.unionExtent.call(this, extent);
@@ -35230,19 +35225,16 @@ function (_super) {
   };
 
   SignLogScale.prototype.contain = function (val) {
-    console.log("SignLogScale contain>>>>>>>>>>>>", val);
     val = this.signedLogTransform(val);
     return contain$1(val, this._extent);
   };
 
   SignLogScale.prototype.normalize = function (val) {
-    console.log("SignLogScale normalize>>>>>>>>>>>>", val);
     val = this.signedLogTransform(val);
     return normalize$1(val, this._extent);
   };
 
   SignLogScale.prototype.scale = function (val) {
-    console.log("SignLogScale scale>>>>>>>>>>>>", val);
     val = scale$2(val, this._extent);
     return this.signedLogInvTransform(val);
   };
@@ -47041,11 +47033,15 @@ var timeAxis = merge({
 var logAxis = defaults({
   logBase: 10
 }, valueAxis);
+var signlogAxis = defaults({
+  logBase: 10
+}, valueAxis);
 var axisDefault = {
   category: categoryAxis,
   value: valueAxis,
   time: timeAxis,
-  log: logAxis
+  log: logAxis,
+  signlog: signlogAxis
 };
 
 /*
@@ -47094,7 +47090,8 @@ var AXIS_TYPES = {
   value: 1,
   category: 1,
   time: 1,
-  log: 1
+  log: 1,
+  signlog: 1
 };
 
 /**

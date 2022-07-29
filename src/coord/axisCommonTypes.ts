@@ -24,7 +24,7 @@ import {
 } from '../util/types';
 
 
-export const AXIS_TYPES = {value: 1, category: 1, time: 1, log: 1} as const;
+export const AXIS_TYPES = {value: 1, category: 1, time: 1, log: 1, signlog: 1} as const;
 export type OptionAxisType = keyof typeof AXIS_TYPES;
 
 export interface AxisBaseOptionCommon extends ComponentOption,
@@ -158,6 +158,11 @@ export interface LogAxisBaseOption extends NumericAxisBaseOptionCommon {
     axisLabel?: AxisLabelOption<'log'>;
     logBase?: number;
 }
+export interface SignLogAxisBaseOption extends NumericAxisBaseOptionCommon {
+    type?: 'signlog';
+    axisLabel?: AxisLabelOption<'signlog'>;
+    logBase?: number;
+}
 export interface TimeAxisBaseOption extends NumericAxisBaseOptionCommon {
     type?: 'time';
     axisLabel?: AxisLabelOption<'time'>;
@@ -209,6 +214,7 @@ export type TimeAxisLabelFormatterOption = string
 type LabelFormatters = {
     value: AxisLabelValueFormatter | string
     log: AxisLabelValueFormatter | string
+    signlog: AxisLabelValueFormatter | string
     category: AxisLabelCategoryFormatter | string
     time: TimeAxisLabelFormatterOption
 };
