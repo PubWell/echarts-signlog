@@ -37,7 +37,12 @@ const mathFloor = Math.floor;
 const mathCeil = Math.ceil;
 const mathPow = Math.pow;
 
-const mathLog = Math.log;
+const mathLog = (base:number, value:number) => {
+    if (value === 0) {
+        return value;
+    }
+    return Math.log(Math.abs(value)) / Math.log(base);
+  };
 
 class LogScale extends Scale {
     static type = 'log';
@@ -86,8 +91,8 @@ class LogScale extends Scale {
 
     setExtent(start: number, end: number): void {
         const base = this.base;
-        start = mathLog(start) / mathLog(base);
-        end = mathLog(end) / mathLog(base);
+        start = mathLog(base, start);
+        end = mathLog(base, end);
         intervalScaleProto.setExtent.call(this, start, end);
     }
 
@@ -113,8 +118,8 @@ class LogScale extends Scale {
         this._originalScale.unionExtent(extent);
 
         const base = this.base;
-        extent[0] = mathLog(extent[0]) / mathLog(base);
-        extent[1] = mathLog(extent[1]) / mathLog(base);
+        extent[0] = mathLog(base, extent[0]);
+        extent[1] = mathLog(base, extent[1]);
         scaleProto.unionExtent.call(this, extent);
     }
 
@@ -176,12 +181,12 @@ class LogScale extends Scale {
     }
 
     contain(val: number): boolean {
-        val = mathLog(val) / mathLog(this.base);
+        val = mathLog(this.base, val);
         return scaleHelper.contain(val, this._extent);
     }
 
     normalize(val: number): number {
-        val = mathLog(val) / mathLog(this.base);
+        val = mathLog(this.base, val);
         return scaleHelper.normalize(val, this._extent);
     }
 
