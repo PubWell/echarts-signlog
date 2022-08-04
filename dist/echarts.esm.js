@@ -34932,7 +34932,14 @@ var roundingErrorFix = round;
 var mathFloor = Math.floor;
 var mathCeil = Math.ceil;
 var mathPow$1 = Math.pow;
-var mathLog = Math.log;
+
+var mathLog = function (base, value) {
+  if (value === 0) {
+    return value;
+  }
+
+  return Math.log(Math.abs(value)) / Math.log(base);
+};
 
 var LogScale =
 /** @class */
@@ -34973,8 +34980,8 @@ function (_super) {
 
   LogScale.prototype.setExtent = function (start, end) {
     var base = this.base;
-    start = mathLog(start) / mathLog(base);
-    end = mathLog(end) / mathLog(base);
+    start = mathLog(base, start);
+    end = mathLog(base, end);
     intervalScaleProto.setExtent.call(this, start, end);
   };
   /**
@@ -34999,8 +35006,8 @@ function (_super) {
     this._originalScale.unionExtent(extent);
 
     var base = this.base;
-    extent[0] = mathLog(extent[0]) / mathLog(base);
-    extent[1] = mathLog(extent[1]) / mathLog(base);
+    extent[0] = mathLog(base, extent[0]);
+    extent[1] = mathLog(base, extent[1]);
     scaleProto.unionExtent.call(this, extent);
   };
 
@@ -35052,12 +35059,12 @@ function (_super) {
   };
 
   LogScale.prototype.contain = function (val) {
-    val = mathLog(val) / mathLog(this.base);
+    val = mathLog(this.base, val);
     return contain$1(val, this._extent);
   };
 
   LogScale.prototype.normalize = function (val) {
-    val = mathLog(val) / mathLog(this.base);
+    val = mathLog(this.base, val);
     return normalize$1(val, this._extent);
   };
 
@@ -35087,9 +35094,28 @@ var roundingErrorFix$1 = round;
 var mathFloor$1 = Math.floor;
 var mathCeil$1 = Math.ceil;
 var mathPow$2 = Math.pow;
-var mathLog$1 = Math.log;
 var mathAbs$2 = Math.abs;
 var mathSign = Math.sign;
+var mathMin$5 = Math.min;
+var mathMax$5 = Math.max;
+
+var mathLog$1 = function (base, value) {
+  if (value === 0) {
+    return value;
+  }
+
+  return Math.log(mathAbs$2(value)) / Math.log(base);
+};
+
+var qwtLog = function (base, value) {
+  if (value === 0) {
+    return value;
+  } else if (value < 0) {
+    return -mathLog$1(base, -value);
+  }
+
+  return mathLog$1(base, value);
+};
 
 var SignLogScale =
 /** @class */
@@ -35114,12 +35140,14 @@ function (_super) {
   SignLogScale.prototype.getTicks = function (expandToNicedExtent) {
     var originalScale = this._originalScale;
     var extent = this._extent;
-    var originalExtent = originalScale.getExtent();
-    var ticks = intervalScaleProto$1.getTicks.call(this, expandToNicedExtent);
+    var originalExtent = originalScale.getExtent(); // const ticks = intervalScaleProto.getTicks.call(this, expandToNicedExtent);
+
+    var ticks = this.buildMajorTicks(this._interval);
+    var powVal = 0;
     return map(ticks, function (tick) {
       var val = tick.value;
-      var num = this.signedLogInvTransform(val);
-      var powVal = round(num); // Fix #4158
+      var num = tick.sign * mathPow$2(this.base, val);
+      powVal = round(num); // Fix #4158
 
       powVal = val === extent[0] && this._fixMin ? fixRoundingError$1(powVal, originalExtent[0]) : powVal;
       powVal = val === extent[1] && this._fixMax ? fixRoundingError$1(powVal, originalExtent[1]) : powVal;
@@ -35130,9 +35158,22 @@ function (_super) {
   };
 
   SignLogScale.prototype.setExtent = function (start, end) {
-    warn('setExtent>>>>>>>>>>>>>>>>>>>');
     start = this.signedLogTransform(start);
     end = this.signedLogTransform(end);
+    var base = this.base;
+
+    if (start < 1 && start > -1 && end < 1 && end > -1) {
+      var lmin = mathLog$1(base, start);
+      var lmax = mathLog$1(base, end);
+      start = mathMin$5(lmin, lmax);
+
+      if (start * end >= 0) {
+        end = mathMax$5(lmin, lmax);
+      } else {
+        end = 0;
+      }
+    }
+
     intervalScaleProto$1.setExtent.call(this, start, end);
   };
   /**
@@ -35142,11 +35183,11 @@ function (_super) {
 
   SignLogScale.prototype.getExtent = function () {
     var extent = scaleProto$1.getExtent.call(this);
-    extent[0] = this.signedLogInvTransform(extent[0]);
-    extent[1] = this.signedLogInvTransform(extent[1]); // Fix #4158
-
     var originalScale = this._originalScale;
     var originalExtent = originalScale.getExtent();
+    extent[0] = originalExtent[0];
+    extent[1] = originalExtent[1]; // Fix #4158
+
     this._fixMin && (extent[0] = fixRoundingError$1(extent[0], originalExtent[0]));
     this._fixMax && (extent[1] = fixRoundingError$1(extent[1], originalExtent[1]));
     return extent;
@@ -35157,6 +35198,20 @@ function (_super) {
 
     extent[0] = this.signedLogTransform(extent[0]);
     extent[1] = this.signedLogTransform(extent[1]);
+    var base = this.base;
+
+    if (extent[0] < 1 && extent[0] > -1 && extent[1] < 1 && extent[1] > -1) {
+      var lmin = mathLog$1(base, extent[0]);
+      var lmax = mathLog$1(base, extent[1]);
+      extent[0] = mathMin$5(lmin, lmax);
+
+      if (extent[0] * extent[1] >= 0) {
+        extent[1] = mathMax$5(lmin, lmax);
+      } else {
+        extent[1] = 0;
+      }
+    }
+
     scaleProto$1.unionExtent.call(this, extent);
   };
 
@@ -35172,48 +35227,29 @@ function (_super) {
 
 
   SignLogScale.prototype.calcNiceTicks = function (approxTickNum) {
-    warn('calcNiceTicks>>>>>>>>>>>>>>>>>>>');
     approxTickNum = approxTickNum || 10;
     var extent = this._extent;
     var span = extent[1] - extent[0];
 
-    if (extent[1] < 10 && extent[1] > -10 && extent[0] < 10 && extent[0] > -10) {
-      if (!isFinite(span)) {
-        return;
-      } // User may set axis min 0 and data are all negative
-      // FIXME If it needs to reverse ?
-
-
-      if (span < 0) {
-        span = -span;
-        extent.reverse();
-      }
-
-      var result = intervalScaleNiceTicks(extent, approxTickNum, undefined, undefined); // this._intervalPrecision = result.intervalPrecision;
-
-      this._interval = result.interval;
-      this._niceExtent = result.niceTickExtent;
-    } else {
-      if (span === Infinity || span <= 0) {
-        return;
-      }
-
-      var interval = quantity(span);
-      var err = approxTickNum / span * interval; // Filter ticks to get closer to the desired count.
-
-      if (err <= 0.5) {
-        interval *= 10;
-      } // Interval should be integer
-
-
-      while (!isNaN(interval) && Math.abs(interval) < 1 && Math.abs(interval) > 0) {
-        interval *= 10;
-      }
-
-      var niceExtent = [round(mathCeil$1(extent[0] / interval) * interval), round(mathFloor$1(extent[1] / interval) * interval)];
-      this._interval = interval;
-      this._niceExtent = niceExtent;
+    if (span === Infinity || span <= 0) {
+      return;
     }
+
+    var interval = quantity(span);
+    var err = approxTickNum / span * interval; // Filter ticks to get closer to the desired count.
+
+    if (err <= 0.5) {
+      interval *= 10;
+    } // Interval should be integer
+
+
+    while (!isNaN(interval) && mathAbs$2(interval) < 1 && mathAbs$2(interval) > 0) {
+      interval *= 10;
+    }
+
+    var niceExtent = [round(mathCeil$1(extent[0] / interval) * interval), round(mathFloor$1(extent[1] / interval) * interval)];
+    this._interval = interval;
+    this._niceExtent = niceExtent;
   };
 
   SignLogScale.prototype.calcNiceExtent = function (opt) {
@@ -35227,25 +35263,75 @@ function (_super) {
   };
 
   SignLogScale.prototype.contain = function (val) {
+    var originalScale = this._originalScale;
+    var originalExtent = originalScale.getExtent();
+
+    var extent = this._extent.concat();
+
     val = this.signedLogTransform(val);
-    return contain$1(val, this._extent);
+
+    if (originalExtent[0] < 10 && originalExtent[0] > -10 && originalExtent[1] < 10 && originalExtent[1] > -10) {
+      var base = this.base;
+      val = mathLog$1(base, val);
+
+      if (originalExtent[1] < 0) {
+        extent = extent.reverse();
+      }
+    }
+
+    return contain$1(val, extent);
   };
 
   SignLogScale.prototype.normalize = function (val) {
+    var originalScale = this._originalScale;
+    var originalExtent = originalScale.getExtent();
+
+    var extent = this._extent.concat();
+
     val = this.signedLogTransform(val);
-    return normalize$1(val, this._extent);
+
+    if (originalExtent[0] < 10 && originalExtent[0] > -10 && originalExtent[1] < 10 && originalExtent[1] > -10) {
+      var base = this.base;
+      val = mathLog$1(base, val);
+
+      if (originalExtent[1] < 0) {
+        extent = extent.reverse();
+      }
+    }
+
+    return normalize$1(val, extent);
   };
 
   SignLogScale.prototype.scale = function (val) {
-    val = scale$2(val, this._extent);
-    return this.signedLogInvTransform(val);
+    var originalScale = this._originalScale;
+    var originalExtent = originalScale.getExtent();
+
+    var extent = this._extent.concat();
+
+    var res = 0;
+
+    if (originalExtent[0] < 10 && originalExtent[0] > -10 && originalExtent[1] < 10 && originalExtent[1] > -10) {
+      var base = this.base;
+
+      if (originalExtent[1] < 0) {
+        extent = extent.reverse();
+      }
+
+      val = scale$2(val, extent);
+      res = mathSign(originalExtent[0]) * mathPow$2(base, val);
+    } else {
+      val = scale$2(val, extent);
+      res = val;
+    }
+
+    return this.signedLogInvTransform(res);
   };
 
   SignLogScale.prototype.signedLogTransform = function (val) {
     if (val > -10 && val < 10) {
       return val / 10;
     } else {
-      return mathSign(val) * mathLog$1(Math.abs(val)) / mathLog$1(this.base);
+      return mathSign(val) * mathLog$1(this.base, mathAbs$2(val));
     }
   };
 
@@ -35255,6 +35341,198 @@ function (_super) {
     } else {
       return mathSign(val) * mathPow$2(this.base, mathAbs$2(val));
     }
+  };
+
+  SignLogScale.prototype.align = function (min, max, interval) {
+    var base = this.base;
+    var minLog = qwtLog(base, min);
+    var maxLog = qwtLog(base, max);
+    var x1 = mathFloor$1(minLog);
+    var x2 = mathCeil$1(maxLog);
+
+    if (this.fuzzyCompare(min, x1, interval) === 0) {
+      x1 = min;
+    }
+
+    if (this.fuzzyCompare(max, x2, interval) === 0) {
+      x2 = max;
+    }
+
+    var vMin = 0;
+    var vMax = 0;
+
+    if (min === 0) {
+      vMin = 0;
+    } else if (min < 0) {
+      vMin = -mathPow$2(base, -x1);
+    } else {
+      vMin = mathPow$2(base, x1);
+    }
+
+    if (max === 0) {
+      vMax = 0;
+    } else if (max < 0) {
+      vMax = -mathPow$2(base, -x2);
+    } else {
+      vMax = mathPow$2(base, x2);
+    }
+
+    return [vMin, vMax];
+  };
+
+  SignLogScale.prototype.buildMajorTicks = function (interval) {
+    var base = this.base;
+    var originalScale = this._originalScale;
+    var originalExtent = originalScale.getExtent();
+    var val = this.align(originalExtent[0], originalExtent[1], interval);
+    var min = val[0];
+    var max = val[1];
+    var pmin = qwtLog(base, originalExtent[0]);
+    var nmax = qwtLog(base, originalExtent[1]);
+    var x1 = mathFloor$1(pmin);
+    var x2 = mathCeil$1(nmax);
+
+    if (this.fuzzyCompare(pmin, x1, interval) === 0) {
+      x1 = pmin;
+    }
+
+    pmin = mathPow$2(base, x1);
+
+    if (this.fuzzyCompare(nmax, x2, interval) === 0) {
+      x2 = nmax;
+    }
+
+    nmax = -mathPow$2(base, -x2);
+    var wdt = this.getWdt(min, max, pmin, nmax);
+    var pwdt = wdt[0];
+    var nwdt = wdt[1];
+    var num1 = round(pwdt / interval) + 1;
+    var num2 = round(nwdt / interval) + 1;
+    num1 = num1 > 10000 ? 10000 : num1;
+    num2 = num2 > 10000 ? 10000 : num2;
+    var ticks = [];
+    var tickMin = {
+      sign: mathSign(min),
+      value: mathLog$1(base, min)
+    };
+    var tickMax = {
+      sign: mathSign(max),
+      value: mathLog$1(base, max)
+    };
+    ticks.push(tickMin);
+    ticks.push(tickMax);
+
+    if (min * max < 0) {
+      ticks.push({
+        sign: 0,
+        value: 0
+      });
+    }
+
+    if (num1 > 1) {
+      var pmax = mathLog$1(base, max);
+
+      if (min > 0) {
+        pmin = min;
+      }
+
+      pmin = mathLog$1(base, pmin);
+      var pstep = mathAbs$2(pmax - pmin) / (num1 - 1);
+
+      for (var i = 1; i < num1 - 1; i++) {
+        var stp = mathMin$5(pmin, pmax) + i * pstep;
+        var tick = {
+          sign: 1,
+          value: mathFloor$1(stp)
+        };
+        ticks.push(tick);
+      }
+    }
+
+    if (num2 > 1) {
+      if (max < 0) {
+        nmax = max;
+      }
+
+      nmax = mathLog$1(base, -nmax);
+      var nmin = mathLog$1(base, -min);
+      var nstep = mathAbs$2(nmin - nmax) / (num2 - 1);
+
+      for (var i = 1; i < num2 - 1; i++) {
+        var stp = mathMin$5(nmin, nmax) + i * nstep;
+        var tick = {
+          sign: -1,
+          value: mathFloor$1(stp)
+        };
+        ticks.push(tick);
+      }
+    }
+
+    ticks.sort(function (a, b) {
+      return Number(a.sign * mathPow$2(base, a.value)) - Number(b.sign * mathPow$2(base, b.value));
+    });
+    return ticks;
+  };
+
+  SignLogScale.prototype.getWdt = function (min, max, pmin, nmax) {
+    var base = this.base;
+    var pwdt = 0;
+    var nwdt = 0;
+
+    if (min * max <= 0) {
+      if (min === 0) {
+        if (pmin < max) {
+          pwdt = mathAbs$2(qwtLog(base, max) - qwtLog(base, pmin));
+        } else {
+          pwdt = qwtLog(base, max);
+        }
+      } else if (max === 0) {
+        if (nmax > min) {
+          nwdt = mathAbs$2(qwtLog(base, nmax) - qwtLog(base, min));
+        } else {
+          nwdt = -qwtLog(base, min);
+        }
+      } else {
+        if (pmin < max && nmax > min) {
+          pwdt = mathAbs$2(qwtLog(base, max) - qwtLog(base, pmin));
+          nwdt = mathAbs$2(qwtLog(base, nmax) - qwtLog(base, min));
+        } else if (pmin >= max && nmax <= min) {
+          pwdt = mathAbs$2(qwtLog(base, max));
+          nwdt = mathAbs$2(-qwtLog(base, min));
+        } else if (pmin >= max) {
+          pwdt = mathAbs$2(qwtLog(base, max));
+          nwdt = mathAbs$2(qwtLog(base, nmax) - qwtLog(base, min));
+        } else {
+          pwdt = mathAbs$2(qwtLog(base, max) - qwtLog(base, pmin));
+          nwdt = mathAbs$2(-qwtLog(base, min));
+        }
+      }
+    } else {
+      var maxLog = qwtLog(base, max);
+      var minLog = qwtLog(base, min);
+
+      if (min > 0) {
+        pwdt = maxLog - minLog;
+      } else {
+        nwdt = maxLog - minLog;
+      }
+    }
+
+    return [pwdt, nwdt];
+  };
+
+  SignLogScale.prototype.fuzzyCompare = function (value1, value2, interval) {
+    var eps = mathAbs$2(Math.pow(10, -6) * interval);
+
+    if (value2 - value1 > eps) {
+      return -1;
+    }
+
+    if (value1 - value2 > eps) {
+      return 1;
+    }
+
+    return 0;
   };
 
   SignLogScale.type = 'signlog';
@@ -41699,8 +41977,8 @@ function lineAnimationDiff(oldData, newData, oldStackedOnPoints, newStackedOnPoi
   };
 }
 
-var mathMin$5 = Math.min;
-var mathMax$5 = Math.max;
+var mathMin$6 = Math.min;
+var mathMax$6 = Math.max;
 
 function isPointNull(x, y) {
   return isNaN(x) || isNaN(y);
@@ -41828,10 +42106,10 @@ function drawSegment(ctx, points, start, segLen, allLen, dir, smooth, smoothMono
             nextCpy0 = y + vy * smooth * ratioNextSeg; // Smooth constraint between point and next point.
             // Avoid exceeding extreme after smoothing.
 
-            nextCpx0 = mathMin$5(nextCpx0, mathMax$5(nextX, x));
-            nextCpy0 = mathMin$5(nextCpy0, mathMax$5(nextY, y));
-            nextCpx0 = mathMax$5(nextCpx0, mathMin$5(nextX, x));
-            nextCpy0 = mathMax$5(nextCpy0, mathMin$5(nextY, y)); // Reclaculate cp1 based on the adjusted cp0 of next seg.
+            nextCpx0 = mathMin$6(nextCpx0, mathMax$6(nextX, x));
+            nextCpy0 = mathMin$6(nextCpy0, mathMax$6(nextY, y));
+            nextCpx0 = mathMax$6(nextCpx0, mathMin$6(nextX, x));
+            nextCpy0 = mathMax$6(nextCpy0, mathMin$6(nextY, y)); // Reclaculate cp1 based on the adjusted cp0 of next seg.
 
             vx = nextCpx0 - x;
             vy = nextCpy0 - y;
@@ -41839,10 +42117,10 @@ function drawSegment(ctx, points, start, segLen, allLen, dir, smooth, smoothMono
             cpy1 = y - vy * lenPrevSeg / lenNextSeg; // Smooth constraint between point and prev point.
             // Avoid exceeding extreme after smoothing.
 
-            cpx1 = mathMin$5(cpx1, mathMax$5(prevX, x));
-            cpy1 = mathMin$5(cpy1, mathMax$5(prevY, y));
-            cpx1 = mathMax$5(cpx1, mathMin$5(prevX, x));
-            cpy1 = mathMax$5(cpy1, mathMin$5(prevY, y)); // Adjust next cp0 again.
+            cpx1 = mathMin$6(cpx1, mathMax$6(prevX, x));
+            cpy1 = mathMin$6(cpy1, mathMax$6(prevY, y));
+            cpx1 = mathMax$6(cpx1, mathMin$6(prevX, x));
+            cpy1 = mathMax$6(cpy1, mathMin$6(prevY, y)); // Adjust next cp0 again.
 
             vx = x - cpx1;
             vy = y - cpy1;
@@ -44018,8 +44296,8 @@ function adjustAngleDistanceY(angle, distance, isEnd) {
   return distance * Math.cos(angle) * (isEnd ? 1 : -1);
 }
 
-var mathMax$6 = Math.max;
-var mathMin$6 = Math.min;
+var mathMax$7 = Math.max;
+var mathMin$7 = Math.min;
 
 function getClipArea(coord, data) {
   var coordSysClipArea = coord.getArea && coord.getArea();
@@ -44531,10 +44809,10 @@ var clip = {
 
     var coordSysX2 = coordSysBoundingRect.x + coordSysBoundingRect.width;
     var coordSysY2 = coordSysBoundingRect.y + coordSysBoundingRect.height;
-    var x = mathMax$6(layout.x, coordSysBoundingRect.x);
-    var x2 = mathMin$6(layout.x + layout.width, coordSysX2);
-    var y = mathMax$6(layout.y, coordSysBoundingRect.y);
-    var y2 = mathMin$6(layout.y + layout.height, coordSysY2);
+    var x = mathMax$7(layout.x, coordSysBoundingRect.x);
+    var x2 = mathMin$7(layout.x + layout.width, coordSysX2);
+    var y = mathMax$7(layout.y, coordSysBoundingRect.y);
+    var y2 = mathMin$7(layout.y + layout.height, coordSysY2);
     var xClipped = x2 < x;
     var yClipped = y2 < y; // When xClipped or yClipped, the element will be marked as `ignore`.
     // But we should also place the element at the edge of the coord sys bounding rect.
@@ -44567,8 +44845,8 @@ var clip = {
       layout.r0 = tmp;
     }
 
-    var r = mathMin$6(layout.r, coordSysClipArea.r);
-    var r0 = mathMax$6(layout.r0, coordSysClipArea.r0);
+    var r = mathMin$7(layout.r, coordSysClipArea.r);
+    var r0 = mathMax$7(layout.r0, coordSysClipArea.r0);
     layout.r = r;
     layout.r0 = r0;
     var clipped = r - r0 < 0; // Reverse back
@@ -58481,8 +58759,8 @@ function mapVisual(nodeModel, visuals, child, index, mapping, seriesModel) {
   return childVisuals;
 }
 
-var mathMax$7 = Math.max;
-var mathMin$7 = Math.min;
+var mathMax$8 = Math.max;
+var mathMin$8 = Math.min;
 var retrieveValue = retrieve;
 var each$4 = each;
 var PATH_BORDER_WIDTH = ['itemStyle', 'borderWidth'];
@@ -58610,8 +58888,8 @@ function squarify(node, options, hideChildren, depth) {
     upperHeight: upperHeight,
     upperLabelHeight: upperLabelHeight
   }, true);
-  width = mathMax$7(width - 2 * layoutOffset, 0);
-  height = mathMax$7(height - layoutOffset - layoutOffsetUpper, 0);
+  width = mathMax$8(width - 2 * layoutOffset, 0);
+  height = mathMax$8(height - layoutOffset - layoutOffsetUpper, 0);
   var totalArea = width * height;
   var viewChildren = initChildren(node, nodeModel, totalArea, options, hideChildren, depth);
 
@@ -58625,7 +58903,7 @@ function squarify(node, options, hideChildren, depth) {
     width: width,
     height: height
   };
-  var rowFixedLength = mathMin$7(width, height);
+  var rowFixedLength = mathMin$8(width, height);
   var best = Infinity; // the best row score so far
 
   var row = [];
@@ -58644,7 +58922,7 @@ function squarify(node, options, hideChildren, depth) {
     else {
         row.area -= row.pop().getLayout().area;
         position(row, rowFixedLength, rect, halfGapWidth, false);
-        rowFixedLength = mathMin$7(rect.width, rect.height);
+        rowFixedLength = mathMin$8(rect.width, rect.height);
         row.length = row.area = 0;
         best = Infinity;
       }
@@ -58823,7 +59101,7 @@ function worst(row, rowFixedLength, ratio) {
 
   var squareArea = row.area * row.area;
   var f = rowFixedLength * rowFixedLength * ratio;
-  return squareArea ? mathMax$7(f * areaMax / squareArea, squareArea / (f * areaMin)) : Infinity;
+  return squareArea ? mathMax$8(f * areaMax / squareArea, squareArea / (f * areaMin)) : Infinity;
 }
 /**
  * Positions the specified row of nodes. Modifies `rect`.
@@ -58854,13 +59132,13 @@ function position(row, rowFixedLength, rect, halfGapWidth, flush) {
     var node = row[i];
     var nodeLayout = {};
     var step = rowOtherLength ? node.getLayout().area / rowOtherLength : 0;
-    var wh1 = nodeLayout[wh[idx1WhenH]] = mathMax$7(rowOtherLength - 2 * halfGapWidth, 0); // We use Math.max/min to avoid negative width/height when considering gap width.
+    var wh1 = nodeLayout[wh[idx1WhenH]] = mathMax$8(rowOtherLength - 2 * halfGapWidth, 0); // We use Math.max/min to avoid negative width/height when considering gap width.
 
     var remain = rect[xy[idx0WhenH]] + rect[wh[idx0WhenH]] - last;
     var modWH = i === rowLen - 1 || remain < step ? remain : step;
-    var wh0 = nodeLayout[wh[idx0WhenH]] = mathMax$7(modWH - 2 * halfGapWidth, 0);
-    nodeLayout[xy[idx1WhenH]] = rect[xy[idx1WhenH]] + mathMin$7(halfGapWidth, wh1 / 2);
-    nodeLayout[xy[idx0WhenH]] = last + mathMin$7(halfGapWidth, wh0 / 2);
+    var wh0 = nodeLayout[wh[idx0WhenH]] = mathMax$8(modWH - 2 * halfGapWidth, 0);
+    nodeLayout[xy[idx1WhenH]] = rect[xy[idx1WhenH]] + mathMin$8(halfGapWidth, wh1 / 2);
+    nodeLayout[xy[idx0WhenH]] = last + mathMin$8(halfGapWidth, wh0 / 2);
     last += modWH;
     node.setLayout(nodeLayout, true);
   }
@@ -63859,8 +64137,8 @@ function restrict(value, extend) {
 }
 
 var each$5 = each;
-var mathMin$8 = Math.min;
-var mathMax$8 = Math.max;
+var mathMin$9 = Math.min;
+var mathMax$9 = Math.max;
 var mathFloor$2 = Math.floor;
 var mathCeil$2 = Math.ceil;
 var round$3 = round;
@@ -64215,8 +64493,8 @@ function () {
     else {
         var winSize2 = axisExpandWindow[1] - axisExpandWindow[0];
         var pos = extent[1] * pointCoord / winSize2;
-        axisExpandWindow = [mathMax$8(0, pos - winSize2 / 2)];
-        axisExpandWindow[1] = mathMin$8(extent[1], axisExpandWindow[0] + winSize2);
+        axisExpandWindow = [mathMax$9(0, pos - winSize2 / 2)];
+        axisExpandWindow[1] = mathMin$9(extent[1], axisExpandWindow[0] + winSize2);
         axisExpandWindow[0] = axisExpandWindow[1] - winSize2;
       }
 
@@ -64230,7 +64508,7 @@ function () {
 }();
 
 function restrict$1(len, extent) {
-  return mathMin$8(mathMax$8(len, extent[0]), extent[1]);
+  return mathMin$9(mathMax$9(len, extent[0]), extent[1]);
 }
 
 function layoutAxisWithoutExpand(axisIndex, layoutInfo) {
@@ -64379,8 +64657,8 @@ function (_super) {
 mixin(ParallelAxisModel, AxisModelCommonMixin);
 
 var BRUSH_PANEL_GLOBAL = true;
-var mathMin$9 = Math.min;
-var mathMax$9 = Math.max;
+var mathMin$a = Math.min;
+var mathMax$a = Math.max;
 var mathPow$3 = Math.pow;
 var COVER_Z = 10000;
 var UNSELECT_THRESHOLD = 6;
@@ -64766,7 +65044,7 @@ function createBaseRectCover(rectRangeConverter, controller, brushOption, edgeNa
 
 function updateBaseRect(controller, cover, localRange, brushOption) {
   var lineWidth = brushOption.brushStyle.lineWidth || 0;
-  var handleSize = mathMax$9(lineWidth, MIN_RESIZE_LINE_WIDTH);
+  var handleSize = mathMax$a(lineWidth, MIN_RESIZE_LINE_WIDTH);
   var x = localRange[0][0];
   var y = localRange[1][0];
   var xa = x - lineWidth / 2;
@@ -64825,8 +65103,8 @@ function makeStyle(brushOption) {
 }
 
 function formatRectRange(x, y, x2, y2) {
-  var min = [mathMin$9(x, x2), mathMin$9(y, y2)];
-  var max = [mathMax$9(x, x2), mathMax$9(y, y2)];
+  var min = [mathMin$a(x, x2), mathMin$a(y, y2)];
+  var max = [mathMax$a(x, x2), mathMax$a(y, y2)];
   return [[min[0], max[0]], [min[1], max[1]] // y range
   ];
 }
@@ -64899,10 +65177,10 @@ function clipByPanel(controller, cover, data) {
 }
 
 function pointsToRect(points) {
-  var xmin = mathMin$9(points[0][0], points[1][0]);
-  var ymin = mathMin$9(points[0][1], points[1][1]);
-  var xmax = mathMax$9(points[0][0], points[1][0]);
-  var ymax = mathMax$9(points[0][1], points[1][1]);
+  var xmin = mathMin$a(points[0][0], points[1][0]);
+  var ymin = mathMin$a(points[0][1], points[1][1]);
+  var xmax = mathMax$a(points[0][0], points[1][0]);
+  var ymax = mathMax$a(points[0][1], points[1][1]);
   return {
     x: xmin,
     y: ymin,
@@ -65146,8 +65424,8 @@ function getLineRenderer(xyIndex) {
     },
     getCreatingRange: function (localTrack) {
       var ends = getTrackEnds(localTrack);
-      var min = mathMin$9(ends[0][xyIndex], ends[1][xyIndex]);
-      var max = mathMax$9(ends[0][xyIndex], ends[1][xyIndex]);
+      var min = mathMin$a(ends[0][xyIndex], ends[1][xyIndex]);
+      var max = mathMax$a(ends[0][xyIndex], ends[1][xyIndex]);
       return [min, max];
     },
     updateCoverShape: function (controller, cover, localRange, brushOption) {
@@ -90947,8 +91225,8 @@ function makeHighDownBatch(batch, visualMapModel) {
 
 var linearMap$2 = linearMap;
 var each$e = each;
-var mathMin$a = Math.min;
-var mathMax$a = Math.max; // Arbitrary value
+var mathMin$b = Math.min;
+var mathMax$b = Math.max; // Arbitrary value
 
 var HOVER_LINK_SIZE = 12;
 var HOVER_LINK_OUT = 6; // Notice:
@@ -91072,7 +91350,7 @@ function (_super) {
       }
     }));
     var textRect = visualMapModel.textStyleModel.getTextRect('国');
-    var textSize = mathMax$a(textRect.width, textRect.height); // Handle
+    var textSize = mathMax$b(textRect.width, textRect.height); // Handle
 
     if (useHandle) {
       shapes.handleThumbs = [];
@@ -91481,7 +91759,7 @@ function (_super) {
         // below or upper than sizeExtent.
 
 
-        pos[1] = mathMin$a(mathMax$a(0, pos[1]), itemSize[1]);
+        pos[1] = mathMin$b(mathMax$b(0, pos[1]), itemSize[1]);
 
         self._doHoverLinkToSeries(pos[1], 0 <= pos[0] && pos[0] <= itemSize[0]);
       }
@@ -91515,7 +91793,7 @@ function (_super) {
     var sizeExtent = [0, itemSize[1]];
     var dataExtent = visualMapModel.getExtent(); // For hover link show when hover handle, which might be below or upper than sizeExtent.
 
-    cursorPos = mathMin$a(mathMax$a(sizeExtent[0], cursorPos), sizeExtent[1]);
+    cursorPos = mathMin$b(mathMax$b(sizeExtent[0], cursorPos), sizeExtent[1]);
     var halfHoverLinkSize = getHalfHoverLinkSize(visualMapModel, dataExtent, sizeExtent);
     var hoverRange = [cursorPos - halfHoverLinkSize, cursorPos + halfHoverLinkSize];
     var cursorValue = linearMap$2(cursorPos, sizeExtent, dataExtent, true);
