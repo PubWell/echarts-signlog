@@ -70,6 +70,7 @@ class SignLogScale extends Scale {
 
     // FIXME:TS actually used by `IntervalScale`
     private _interval: number = 0;
+    private _power: number = 0;
     // FIXME:TS actually used by `IntervalScale`
     private _niceExtent: [number, number];
 
@@ -81,15 +82,11 @@ class SignLogScale extends Scale {
         const originalScale = this._originalScale;
         const extent = this._extent;
         const originalExtent = originalScale.getExtent();
-
-        // const ticks = intervalScaleProto.getTicks.call(this, expandToNicedExtent);
-        const ticks = this.buildMajorTicks(this._interval);
-        let powVal = 0;
+        const ticks = intervalScaleProto.getTicks.call(this, expandToNicedExtent);
 
         return zrUtil.map(ticks, function (tick: any) {
-            const val = tick.value;
-            const num: number = tick.sign * mathPow(this.base, val);
-            powVal = numberUtil.round(num);
+            const val: number = this.signedLogInvTransform(tick.value);
+            let powVal = numberUtil.round(val);
 
             // Fix #4158
             powVal = (val === extent[0] && this._fixMin)
@@ -108,20 +105,6 @@ class SignLogScale extends Scale {
     setExtent(start: number, end: number): void {
         start = this.signedLogTransform(start);
         end = this.signedLogTransform(end);
-        const base = this.base;
-
-        if (start < 1 && start > -1 && end < 1 && end > -1) {
-            const lmin = mathLog(base, start);
-            const lmax = mathLog(base, end);
-            start = mathMin(lmin, lmax);
-
-            if (start * end >= 0) {
-                end = mathMax(lmin, lmax);
-            }
-            else {
-                end = 0;
-            }
-        }
 
         intervalScaleProto.setExtent.call(this, start, end);
     }
@@ -131,13 +114,12 @@ class SignLogScale extends Scale {
      */
     getExtent() {
         const extent = scaleProto.getExtent.call(this);
-        const originalScale = this._originalScale;
-        const originalExtent = originalScale.getExtent();
-
-        extent[0] = originalExtent[0];
-        extent[1] = originalExtent[1];
+        extent[0] = this.signedLogInvTransform(extent[0]);
+        extent[1] = this.signedLogInvTransform(extent[1]);
 
         // Fix #4158
+        const originalScale = this._originalScale;
+        const originalExtent = originalScale.getExtent();
         this._fixMin && (extent[0] = fixRoundingError(extent[0], originalExtent[0]));
         this._fixMax && (extent[1] = fixRoundingError(extent[1], originalExtent[1]));
 
@@ -146,23 +128,8 @@ class SignLogScale extends Scale {
 
     unionExtent(extent: [number, number]): void {
         this._originalScale.unionExtent(extent);
-
         extent[0] = this.signedLogTransform(extent[0]);
         extent[1] = this.signedLogTransform(extent[1]);
-        const base = this.base;
-
-        if (extent[0] < 1 && extent[0] > -1 && extent[1] < 1 && extent[1] > -1) {
-            const lmin = mathLog(base, extent[0]);
-            const lmax = mathLog(base, extent[1]);
-            extent[0] = mathMin(lmin, lmax);
-
-            if (extent[0] * extent[1] >= 0) {
-              extent[1] = mathMax(lmin, lmax);
-            }
-            else {
-              extent[1] = 0;
-            }
-        }
 
         scaleProto.unionExtent.call(this, extent);
     }
@@ -226,63 +193,58 @@ class SignLogScale extends Scale {
     }
 
     contain(val: number): boolean {
-        const originalScale = this._originalScale;
-        const originalExtent = originalScale.getExtent();
-        let extent: any = this._extent.concat();
-
         val = this.signedLogTransform(val);
-
-        if (originalExtent[0] < 10 && originalExtent[0] > -10 && originalExtent[1] < 10 && originalExtent[1] > -10) {
-            const base = this.base;
-            val = mathLog(base, val);
-            if (originalExtent[1] < 0) {
-                extent = extent.reverse();
-            }
-        }
-
-        return scaleHelper.contain(val, extent);
+        return scaleHelper.contain(val, this._extent);
     }
 
     normalize(val: number): number {
-        const originalScale = this._originalScale;
-        const originalExtent = originalScale.getExtent();
-        let extent: any = this._extent.concat();
-
         val = this.signedLogTransform(val);
-
-        if (originalExtent[0] < 10 && originalExtent[0] > -10 && originalExtent[1] < 10 && originalExtent[1] > -10) {
-            const base = this.base;
-            val = mathLog(base, val);
-            if (originalExtent[1] < 0) {
-              extent = extent.reverse();
-            }
-        }
-        return scaleHelper.normalize(val, extent);
+        return scaleHelper.normalize(val, this._extent);
     }
 
     scale(val: number): number {
-        const originalScale = this._originalScale;
-        const originalExtent = originalScale.getExtent();
-        let extent: any = this._extent.concat();
-        let res: number = 0;
-
-        if (originalExtent[0] < 10 && originalExtent[0] > -10 && originalExtent[1] < 10 && originalExtent[1] > -10) {
-            const base = this.base;
-            if (originalExtent[1] < 0) {
-                extent = extent.reverse();
-            }
-            val = scaleHelper.scale(val, extent);
-            res = mathSign(originalExtent[0]) * mathPow(base, val);
-        }
-        else {
-            val = scaleHelper.scale(val, extent);
-            res = val;
-        }
-
-        return this.signedLogInvTransform(res);
+        val = scaleHelper.scale(val, this._extent);
+        return this.signedLogInvTransform(val);
     }
 
+    calcExtreme(): void {
+        const originalScale = this._originalScale;
+        const originalExtent = originalScale.getExtent();
+
+        let nmax = 0;
+        let pmin = 0;
+        if (originalExtent[1] <= 0) {
+          nmax = originalExtent[1];
+        }
+        else if (originalExtent[0] >= 0) {
+          pmin = originalExtent[0];
+        }
+        else {
+          nmax = originalExtent[0] < 0 ? originalExtent[0] : 0;
+          pmin = originalExtent[1] > 0 ? originalExtent[0] : 0;
+        }
+
+        let min = 0;
+        if (nmax !== 0 && pmin !== 0) {
+          min = mathMin(-nmax, pmin);
+        }
+        else if (nmax === 0) {
+          min = pmin;
+        }
+        else {
+          min = -nmax;
+        }
+
+        if (min > 0 && min < 10) {
+          this._power = mathAbs(mathLog(10, min));
+        }
+      };
+
     signedLogTransform(val: number): number {
+        this.calcExtreme();
+
+        val = mathPow(10, this._power) * val;
+
         if (val > -10 && val < 10) {
             return val / 10;
         }
@@ -292,202 +254,14 @@ class SignLogScale extends Scale {
     }
 
     signedLogInvTransform(val: number): number {
+        let mPow = mathPow(10, this._power);
+
         if (val > -1 && val < 1) {
-            return val * 10;
+            return val * 10 / mPow;
         }
         else {
-            return mathSign(val) * mathPow(this.base, mathAbs(val));
+            return mathSign(val) * mathPow(this.base, mathAbs(val)) / mPow;
         }
-    }
-
-    align(min: number, max: number, interval: number): [number, number] {
-        const base = this.base;
-        const minLog = qwtLog(base, min);
-        const maxLog = qwtLog(base, max);
-
-        let x1 = mathFloor(minLog);
-        let x2 = mathCeil(maxLog);
-
-        if (this.fuzzyCompare(min, x1, interval) === 0) {
-            x1 = min;
-        }
-        if (this.fuzzyCompare(max, x2, interval) === 0) {
-            x2 = max;
-        }
-
-        let vMin = 0;
-        let vMax = 0;
-        if (min === 0) {
-            vMin = 0;
-        }
-        else if (min < 0) {
-            vMin = -mathPow(base, -x1);
-        }
-        else {
-            vMin = mathPow(base, x1);
-        }
-
-        if (max === 0) {
-            vMax = 0;
-        }
-        else if (max < 0) {
-            vMax = -mathPow(base, -x2);
-        }
-        else {
-            vMax = mathPow(base, x2);
-        }
-
-        return [vMin, vMax];
-    }
-
-    buildMajorTicks(interval: number): any {
-        const base = this.base;
-        const originalScale = this._originalScale;
-        const originalExtent = originalScale.getExtent();
-
-        const val = this.align(originalExtent[0], originalExtent[1], interval);
-        const min = val[0];
-        const max = val[1];
-
-        let pmin = qwtLog(base, originalExtent[0]);
-        let nmax = qwtLog(base, originalExtent[1]);
-
-        let x1 = mathFloor(pmin);
-        let x2 = mathCeil(nmax);
-
-        if (this.fuzzyCompare(pmin, x1, interval) === 0) {
-            x1 = pmin;
-        }
-        pmin = mathPow(base, x1);
-
-        if (this.fuzzyCompare(nmax, x2, interval) === 0) {
-            x2 = nmax;
-        }
-        nmax = -mathPow(base, -x2);
-
-        const wdt = this.getWdt(min, max, pmin, nmax);
-        const pwdt = wdt[0];
-        const nwdt = wdt[1];
-
-        let num1 = numberUtil.round(pwdt / interval) + 1;
-        let num2 = numberUtil.round(nwdt / interval) + 1;
-        num1 = num1 > 10000 ? 10000 : num1;
-        num2 = num2 > 10000 ? 10000 : num2;
-
-        let ticks = [];
-        let tickMin = { sign: mathSign(min), value: mathLog(base, min) };
-        let tickMax = { sign: mathSign(max), value: mathLog(base, max) };
-        ticks.push(tickMin);
-        ticks.push(tickMax);
-
-        if (min * max < 0) {
-            ticks.push({ sign: 0, value: 0 });
-        }
-
-        if (num1 > 1) {
-            let pmax = mathLog(base, max);
-            if (min > 0) {
-                pmin = min;
-            }
-
-            pmin = mathLog(base, pmin);
-            let pstep = mathAbs(pmax - pmin) / (num1 - 1);
-
-            for (let i = 1; i < num1 - 1; i++) {
-                let stp = mathMin(pmin, pmax) + i * pstep;
-                let tick = { sign: 1, value: mathFloor(stp) };
-                ticks.push(tick);
-            }
-        }
-
-        if (num2 > 1) {
-            if (max < 0) {
-                nmax = max;
-            }
-            nmax = mathLog(base, -nmax);
-
-            let nmin = mathLog(base, -min);
-            let nstep = mathAbs(nmin - nmax) / (num2 - 1);
-
-            for (let i = 1; i < num2 - 1; i++) {
-                let stp = mathMin(nmin, nmax) + i * nstep;
-                let tick = { sign: -1, value: mathFloor(stp) };
-                ticks.push(tick);
-            }
-        }
-
-        ticks.sort((a, b) => {
-          return Number(a.sign * mathPow(base, a.value)) - Number(b.sign * mathPow(base, b.value));
-        });
-
-        return ticks;
-    }
-
-    getWdt(min: number, max: number, pmin: number, nmax: number): [number, number] {
-        const base = this.base;
-        let pwdt = 0;
-        let nwdt = 0;
-
-        if (min * max <= 0) {
-            if (min === 0) {
-                if (pmin < max) {
-                    pwdt = mathAbs(qwtLog(base, max) - qwtLog(base, pmin));
-                }
-                else {
-                    pwdt = qwtLog(base, max);
-                }
-            }
-            else if (max === 0) {
-                if (nmax > min) {
-                    nwdt = mathAbs(qwtLog(base, nmax) - qwtLog(base, min));
-                }
-                else {
-                    nwdt = -qwtLog(base, min);
-                }
-            }
-            else {
-                if (pmin < max && nmax > min) {
-                    pwdt = mathAbs(qwtLog(base, max) - qwtLog(base, pmin));
-                    nwdt = mathAbs(qwtLog(base, nmax) - qwtLog(base, min));
-                }
-                else if (pmin >= max && nmax <= min) {
-                    pwdt = mathAbs(qwtLog(base, max));
-                    nwdt = mathAbs(-qwtLog(base, min));
-                }
-                else if (pmin >= max) {
-                    pwdt = mathAbs(qwtLog(base, max));
-                    nwdt = mathAbs(qwtLog(base, nmax) - qwtLog(base, min));
-                }
-                else {
-                    pwdt = mathAbs(qwtLog(base, max) - qwtLog(base, pmin));
-                    nwdt = mathAbs(-qwtLog(base, min));
-                }
-            }
-        }
-        else {
-            const maxLog = qwtLog(base, max);
-            const minLog = qwtLog(base, min);
-            if (min > 0) {
-                pwdt = maxLog - minLog;
-            }
-            else {
-                nwdt = maxLog - minLog;
-            }
-        }
-
-        return [pwdt, nwdt];
-    }
-
-    fuzzyCompare(value1: number, value2: number, interval: number): number {
-        const eps = mathAbs(10 ** (-6) * interval);
-
-        if (value2 - value1 > eps) {
-            return -1;
-        }
-        if (value1 - value2 > eps) {
-            return 1;
-        }
-        return 0;
     }
 
     getMinorTicks: IntervalScale['getMinorTicks'];
